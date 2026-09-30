@@ -31,11 +31,26 @@ struct ToolbarInfoTests {
         #expect(span.midY == 26)
     }
 
-    @Test func titleSpanGrowsWhenAnItemIsRemoved() throws {
-        var info = Self.tahoe
-        info.controls.removeAll { $0.role == "AXRadioGroup" || $0.role == "AXRadioButton" }
-        let span = try #require(info.titleSpan())
-        #expect(span.maxX == 737)
+    /// The same window after the view switcher and group-by buttons were dragged out: Finder handed the
+    /// freed room to the search field (collapsed button → 293 pt field), and the title shrank to 245.
+    static let tahoeWithoutViewButtons = ToolbarInfo(
+        windowSize: CGSize(width: 982, height: 498),
+        toolbar: CGRect(x: 0, y: 0, width: 982, height: 52),
+        title: CGRect(x: 288, y: 0, width: 245, height: 52),
+        controls: [
+            C(role: "AXButton", subrole: "AXSegment", frame: CGRect(x: 211, y: 8, width: 36, height: 36)),
+            C(role: "AXButton", subrole: "AXSegment", frame: CGRect(x: 248, y: 8, width: 36, height: 36)),
+            C(role: "AXButton", subrole: "", frame: CGRect(x: 549, y: 0, width: 41, height: 52)),
+            C(role: "AXMenuButton", subrole: "", frame: CGRect(x: 590, y: 0, width: 37, height: 52)),
+            C(role: "AXButton", subrole: "", frame: CGRect(x: 627, y: 0, width: 43, height: 52)),
+            C(role: "AXTextField", subrole: "AXSearchField", frame: CGRect(x: 673, y: 7, width: 293, height: 38)),
+        ],
+        isBrowser: true)
+
+    @Test func titleSpanEndsAtShareButtonWhenSearchFieldExpands() throws {
+        let span = try #require(Self.tahoeWithoutViewButtons.titleSpan())
+        #expect(span.minX == 284)
+        #expect(span.maxX == 549)
     }
 
     @Test func withoutTitleUsesWidestGap() throws {
