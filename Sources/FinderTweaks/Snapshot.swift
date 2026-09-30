@@ -34,7 +34,20 @@ enum Snapshot {
             bar.layout()
             write(backdrop, to: "\(dir)/\(name).png")
         }
-        print("wrote \(cases.count) snapshots to \(dir)")
+        // Compact search: path capsule + the short search button, as laid out over the toolbar.
+        for (name, appearance) in [("pathbar-compact-light", NSAppearance.Name.aqua), ("pathbar-compact-dark", .darkAqua)] {
+            let backdrop = Backdrop(frame: NSRect(x: 0, y: 0, width: 600, height: 58))
+            backdrop.appearance = NSAppearance(named: appearance)
+            let bar = PathBarView(frame: NSRect(x: 20, y: 10, width: 432, height: 38))
+            let search = SearchButtonView(frame: NSRect(x: 460, y: 10, width: 110, height: 38))
+            backdrop.addSubview(bar)
+            backdrop.addSubview(search)
+            bar.setDisplay(path: deep, title: "")
+            bar.layout()
+            search.layout()
+            write(backdrop, to: "\(dir)/\(name).png")
+        }
+        print("wrote \(cases.count + 2) snapshots to \(dir)")
     }
 
     static func write(_ view: NSView, to path: String) {

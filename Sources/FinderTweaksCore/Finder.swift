@@ -95,3 +95,41 @@ public enum FinderPreferences {
         try? p.run()
     }
 }
+
+/// Finder's saved toolbar layout ("NSToolbar Configuration Browser"). Changes need a Finder restart.
+public enum FinderToolbar {
+    public static let back = "com.apple.finder.BACK"
+    public static let search = "com.apple.finder.SRCH"
+    static let key = "NSToolbar Configuration Browser" as CFString
+    static let spacers: Set<String> = ["NSToolbarSpaceItem", "NSToolbarFlexibleSpaceItem"]
+
+    static var config: [String: Any]? {
+        CFPreferencesCopyAppValue(key, FinderPreferences.domain) as? [String: Any]
+    }
+
+    /// The current items; before the first customization Finder only stores its default list.
+    public static func items() -> [String]? {
+        (config?["TB Item Identifiers"] ?? config?["TB Default Item Identifiers"]) as? [String]
+    }
+
+    public static func setItems(_ items: [String]) {
+        var c = config ?? [:]
+        c["TB Item Identifiers"] = items
+        CFPreferencesSetAppValue(key, c as CFDictionary, FinderPreferences.domain)
+        CFPreferencesAppSynchronize(FinderPreferences.domain)
+        Log.write("finder toolbar items=\(items.joined(separator: ","))")
+    }
+
+    /// The search field comes right after back/forward, i.e. right after the window title.
+    public static var searchFollowsTitle: Bool {
+        let real = (items() ?? []).filter { !spacers.contains($0) }
+        return real.count >= 2 && real[0] == back && real[1] == search
+    }
+
+    public static func moveSearchAfterTitle() {
+        guard var list = items() else { return }
+        list.removeAll { $0 == search }
+        list.insert(search, at: list.firstIndex(of: back).map { $0 + 1 } ?? 0)
+        setItems(list)
+    }
+}

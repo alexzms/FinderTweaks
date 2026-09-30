@@ -15,6 +15,14 @@ final class PathBarFeature: NSObject, Feature, NSTextFieldDelegate, NSWindowDele
     private let tracker: FinderTracker
     private let panel = OverlayPanel()
     let bar = PathBarView(frame: NSRect(x: 0, y: 0, width: 300, height: 28))
+    let searchButton = SearchButtonView(frame: NSRect(x: 0, y: 0, width: 110, height: 28))
+    private var placement: PathBarPlacement?
+
+    /// Cover Finder's search field with the bar plus a short search button (see PathBarPlacement).
+    var compactSearch: Bool {
+        get { UserDefaults.standard.object(forKey: "pathBar.compactSearch") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "pathBar.compactSearch") }
+    }
 
     private var window: FinderWindow?
     private var currentPath: String?
@@ -25,16 +33,47 @@ final class PathBarFeature: NSObject, Feature, NSTextFieldDelegate, NSWindowDele
     private var dragPanelOrigin = NSPoint.zero
     private var updates = 0
     private var occluded = false
-    private var lastPlacement: CGRect?
 
     init(tracker: FinderTracker) {
         self.tracker = tracker
         super.init()
-        panel.contentView = bar
+        let container = NSView()
+        container.addSubview(bar)
+        container.addSubview(searchButton)
+        panel.contentView = container
         panel.delegate = self
         bar.feature = self
         bar.field.delegate = self
+        searchButton.feature = self
         tracker.observe { [weak self] state in self?.update(state) }
+    }
+
+    func menuItems() -> [NSMenuItem] {
+        let item = NSMenuItem(title: "紧凑搜索框", action: #selector(toggleCompactSearch), keyEquivalent: "")
+        item.target = self
+        item.indentationLevel = 1
+        item.state = compactSearch ? .on : .off
+        return [item]
+    }
+
+    @objc private func toggleCompactSearch() {
+        compactSearch.toggle()
+        Log.write("pathBar compactSearch=\(compactSearch)")
+        guard compactSearch, !FinderToolbar.searchFollowsTitle else { return }
+        let alert = NSAlert()
+        alert.messageText = "把搜索框移到标题右边？"
+        alert.informativeText = "紧凑搜索框需要搜索框紧挨着窗口标题。会调整访达工具栏的顺序并重启访达，正在进行的拷贝会被中断。"
+        alert.addButton(withTitle: "移动并重启访达")
+        alert.addButton(withTitle: "取消")
+        NSApp.activate()
+        if alert.runModal() == .alertFirstButtonReturn {
+            FinderToolbar.moveSearchAfterTitle()
+            FinderPreferences.restartFinder()
+        }
+    }
+
+    func focusFinderSearch() {
+        tracker.focusSearchField()
     }
 
     private func update(_ state: FinderState) {
@@ -50,12 +89,15 @@ final class PathBarFeature: NSObject, Feature, NSTextFieldDelegate, NSWindowDele
             window = w
             setContent(path: w.path, title: w.title)
             guard w.isSettled, let toolbar = w.toolbar, toolbar.isBrowser,
-                  let rel = PathBarPlacement.rect(in: toolbar) else { hide(); return }
-            if rel != lastPlacement {
-                lastPlacement = rel
-                Log.write("pathBar at \(Int(rel.minX)),\(Int(rel.minY)) \(Int(rel.width))x\(Int(rel.height))")
+                  let p = PathBarPlacement.compute(in: toolbar, coverSearch: compactSearch && !w.isSearching)
+            else { hide(); return }
+            if p != placement {
+                placement = p
+                let r = p.rect
+                Log.write("pathBar at \(Int(r.minX)),\(Int(r.minY)) \(Int(r.width))x\(Int(r.height)) search=\(Int(p.searchWidth))")
+                layoutContent(p)
             }
-            let target = rel.offsetBy(dx: w.frame.minX, dy: w.frame.minY)
+            let target = p.rect.offsetBy(dx: w.frame.minX, dy: w.frame.minY)
             updates &+= 1
             if updates % 2 == 0 { occluded = Occlusion.check(target, window: w.frame, finderPid: w.pid) }
             guard !occluded else { hide(); return }
@@ -68,6 +110,19 @@ final class PathBarFeature: NSObject, Feature, NSTextFieldDelegate, NSWindowDele
         currentPath = path
         currentTitle = title
         if !editing { bar.setDisplay(path: path, title: title) }
+    }
+
+    /// Path capsule on the left; with compact search, the search button at the right end.
+    private func layoutContent(_ p: PathBarPlacement) {
+        let w = p.rect.width, h = p.rect.height
+        let searchSpace = p.searchWidth > 0 ? p.searchWidth + PathBarPlacement.searchGap : 0
+        bar.frame = NSRect(x: 0, y: 0, width: w - searchSpace, height: h)
+        searchButton.frame = NSRect(x: w - p.searchWidth, y: 0, width: p.searchWidth, height: h)
+        searchButton.isHidden = p.searchWidth == 0
+        for view in [bar, searchButton] as [NSView] {
+            view.needsLayout = true
+            view.needsDisplay = true
+        }
     }
 
     private func show(at rect: NSRect) {

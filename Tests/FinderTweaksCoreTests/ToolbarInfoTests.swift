@@ -53,6 +53,32 @@ struct ToolbarInfoTests {
         #expect(span.maxX == 549)
     }
 
+    /// Search moved right after the title (toolbar: BACK, SRCH, SHAR, ACTN, LABL): title and search
+    /// field now form one stretch, 284–837, that compact search can cover.
+    static let tahoeSearchAfterTitle = ToolbarInfo(
+        windowSize: CGSize(width: 982, height: 498),
+        toolbar: CGRect(x: 0, y: 0, width: 982, height: 52),
+        title: CGRect(x: 288, y: 0, width: 245, height: 52),
+        controls: [
+            C(role: "AXButton", subrole: "AXSegment", frame: CGRect(x: 211, y: 8, width: 36, height: 36)),
+            C(role: "AXButton", subrole: "AXSegment", frame: CGRect(x: 248, y: 8, width: 36, height: 36)),
+            C(role: "AXTextField", subrole: "AXSearchField", frame: CGRect(x: 536, y: 7, width: 301, height: 38)),
+            C(role: "AXButton", subrole: "", frame: CGRect(x: 547, y: 22, width: 16, height: 9)),
+            C(role: "AXButton", subrole: "", frame: CGRect(x: 849, y: 0, width: 41, height: 52)),
+            C(role: "AXMenuButton", subrole: "", frame: CGRect(x: 890, y: 0, width: 37, height: 52)),
+            C(role: "AXButton", subrole: "", frame: CGRect(x: 927, y: 0, width: 43, height: 52)),
+        ],
+        isBrowser: true)
+
+    @Test func searchFieldRightAfterTitleIsFound() throws {
+        let info = Self.tahoeSearchAfterTitle
+        let span = try #require(info.titleSpan())
+        let search = try #require(info.expandedSearchField)
+        #expect(span.maxX == search.minX)
+        #expect(search.maxX == 837)
+        #expect(Self.tahoe.expandedSearchField == nil)  // collapsed to a button there
+    }
+
     @Test func withoutTitleUsesWidestGap() throws {
         var info = Self.tahoe
         info.title = nil

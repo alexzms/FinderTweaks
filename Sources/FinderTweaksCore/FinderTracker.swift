@@ -14,6 +14,8 @@ public struct FinderWindow {
     public let isSettled: Bool
     /// Toolbar layout; nil until the window has settled after a resize.
     public let toolbar: ToolbarInfo?
+    /// Finder's search field has keyboard focus or holds a query.
+    public let isSearching: Bool
 }
 
 public enum FinderState {
@@ -39,6 +41,8 @@ public final class FinderTracker {
     private var window: AXUIElement?
     private var windowFrame = CGRect.zero
     private var toolbar: ToolbarInfo?
+    private var searchField: AXUIElement?
+    private var wasSearching = false
     private var toolbarAt: TimeInterval = 0
     private var changedAt: TimeInterval = 0
     private var trustCheckedAt: TimeInterval = 0
@@ -80,6 +84,21 @@ public final class FinderTracker {
         if let window { AX.setPosition(window, origin) }
     }
 
+    /// Puts the cursor in Finder's search field, falling back to sending ⌘F to Finder.
+    public func focusSearchField() {
+        if let searchField,
+           AXUIElementSetAttributeValue(searchField, kAXFocusedAttribute as CFString, kCFBooleanTrue) == .success {
+            return
+        }
+        Log.write("search field focus via AX failed; sending ⌘F")
+        let source = CGEventSource(stateID: .hidSystemState)
+        for keyDown in [true, false] {
+            let event = CGEvent(keyboardEventSource: source, virtualKey: 3 /* F */, keyDown: keyDown)
+            event?.flags = .maskCommand
+            event?.postToPid(appPid)
+        }
+    }
+
     @objc private func tick() {
         let now = ProcessInfo.processInfo.systemUptime
         if now - trustCheckedAt > 1 {
@@ -113,10 +132,11 @@ public final class FinderTracker {
             if window == nil || !CFEqual(window!, win) {
                 window = win
                 toolbar = nil
+                searchField = nil
                 changedAt = now
             }
             if frame != windowFrame {
-                if frame.size != windowFrame.size { toolbar = nil }
+                if frame.size != windowFrame.size { toolbar = nil; searchField = nil }
                 windowFrame = frame
                 changedAt = now
             }
@@ -125,15 +145,25 @@ public final class FinderTracker {
         // Re-read the toolbar when the window changes, and every 2 s in case it was customized.
         if settled && (toolbar == nil || now - toolbarAt > 2) {
             toolbarAt = now
-            let info = ToolbarProbe.probe(window: win, frame: frame, title: title, hasPath: path != nil)
-            if info.summary != lastSummary {
-                lastSummary = info.summary
-                Log.write("toolbar " + info.summary)
+            let result = ToolbarProbe.probe(window: win, frame: frame, title: title, hasPath: path != nil)
+            if result.info.summary != lastSummary {
+                lastSummary = result.info.summary
+                Log.write("toolbar " + result.info.summary)
             }
-            toolbar = info
+            toolbar = result.info
+            searchField = result.searchField
+        }
+        var searching = false
+        if let searchField {
+            let s = AX.multi(searchField, [kAXFocusedAttribute, kAXValueAttribute])
+            searching = (s[0] as? Bool) == true || !((s[1] as? String) ?? "").isEmpty
+        }
+        if searching != wasSearching {
+            wasSearching = searching
+            Log.write("searching=\(searching)")
         }
         publish(.window(FinderWindow(element: win, pid: appPid, frame: frame, title: title, path: path,
-                                     isSettled: settled, toolbar: toolbar)))
+                                     isSettled: settled, toolbar: toolbar, isSearching: searching)))
     }
 
     private func folderPath(title: String, document: String?) -> String? {

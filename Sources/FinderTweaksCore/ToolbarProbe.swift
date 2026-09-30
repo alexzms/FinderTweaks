@@ -49,6 +49,12 @@ public struct ToolbarInfo: Equatable {
         return (gap.0, gap.1, midY)
     }
 
+    /// The search field while it is shown as a full field (it collapses to a button when room runs out).
+    /// Finder gives it all the free room in the toolbar before the title gets any.
+    public var expandedSearchField: CGRect? {
+        controls.first { $0.role == "AXTextField" && $0.subrole == "AXSearchField" }?.frame
+    }
+
     /// Height of the toolbar's own controls, to size things placed among them.
     public var typicalControlHeight: CGFloat? {
         controls.first { $0.subrole == "AXSearchField" }?.frame.height
@@ -90,7 +96,13 @@ public enum ToolbarProbe {
                                             "AXRadioGroup", "AXCheckBox", "AXTextField", "AXComboBox",
                                             "AXSegmentedControl", "AXSlider"]
 
-    public static func probe(window: AXUIElement, frame F: CGRect, title: String, hasPath: Bool) -> ToolbarInfo {
+    public struct Result {
+        public let info: ToolbarInfo
+        /// Finder's search field element, when expanded.
+        public let searchField: AXUIElement?
+    }
+
+    public static func probe(window: AXUIElement, frame F: CGRect, title: String, hasPath: Bool) -> Result {
         var nodes: [AXNode] = []
         var budget = 400
         func walk(_ list: [AXNode], depth: Int) {
@@ -131,7 +143,9 @@ public enum ToolbarProbe {
             return ToolbarInfo.Control(role: n.role, subrole: n.subrole, frame: f)
         }
         let isBrowser = nodes.contains { $0.role == "AXSplitGroup" } || (hasPath && toolbar != nil)
-        return ToolbarInfo(windowSize: F.size, toolbar: toolbar, title: titleFrame, controls: controls,
-                           isBrowser: isBrowser)
+        let info = ToolbarInfo(windowSize: F.size, toolbar: toolbar, title: titleFrame, controls: controls,
+                               isBrowser: isBrowser)
+        let search = nodes.first { $0.role == "AXTextField" && $0.subrole == "AXSearchField" }?.element
+        return Result(info: info, searchField: search)
     }
 }

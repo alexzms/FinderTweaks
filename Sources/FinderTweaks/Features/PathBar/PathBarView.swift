@@ -175,6 +175,10 @@ final class PathBarView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
+        Self.drawCapsule(in: bounds, style: style, hovered: hovered)
+    }
+
+    static func drawCapsule(in bounds: NSRect, style: Style, hovered: Bool) {
         let lineWidth: CGFloat = style == .normal ? 1 : 2
         let r = bounds.insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
         let capsule = NSBezierPath(roundedRect: r, xRadius: r.height / 2, yRadius: r.height / 2)
@@ -232,6 +236,56 @@ final class PathBarView: NSView {
         menu.addItem(withTitle: "编辑路径", action: #selector(PathBarFeature.editPath), keyEquivalent: "").target = feature
         menu.addItem(withTitle: "拷贝路径", action: #selector(PathBarFeature.copyPath), keyEquivalent: "").target = feature
         return menu
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) { hovered = true }
+    override func mouseExited(with event: NSEvent) { hovered = false }
+}
+
+/// The short search button at the end of the bar (compact search). Clicking it hands the keyboard to
+/// Finder's own search field, which the bar then uncovers.
+final class SearchButtonView: NSView {
+    weak var feature: PathBarFeature?
+    private let icon = NSImageView()
+    private let label = NSTextField(labelWithString: "搜索")
+    private var hovered = false { didSet { if hovered != oldValue { needsDisplay = true } } }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        icon.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "搜索")
+        icon.contentTintColor = .secondaryLabelColor
+        label.font = PathBarView.font
+        label.textColor = .secondaryLabelColor
+        [icon, label].forEach(addSubview)
+    }
+
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    override func layout() {
+        super.layout()
+        let h = bounds.height
+        icon.frame = NSRect(x: 12, y: ((h - 16) / 2).rounded(), width: 16, height: 16)
+        let lh = label.intrinsicContentSize.height
+        label.frame = NSRect(x: 33, y: ((h - lh) / 2).rounded(), width: max(0, bounds.width - 45), height: lh)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        PathBarView.drawCapsule(in: bounds, style: .normal, hovered: hovered)
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var needsPanelToBecomeKey: Bool { false }
+    override func hitTest(_ point: NSPoint) -> NSView? { super.hitTest(point) == nil ? nil : self }
+    override func mouseDown(with event: NSEvent) {}
+    override func mouseUp(with event: NSEvent) {
+        if bounds.contains(convert(event.locationInWindow, from: nil)) { feature?.focusFinderSearch() }
     }
 
     override func updateTrackingAreas() {
