@@ -16,6 +16,7 @@ Menu bar app (LSUIElement) that enhances Finder. Swift package; the machine has 
 - Always sign with the "FinderTweaks Local Signing" identity (build.sh does it when present). Ad-hoc builds lose the Accessibility grant on every rebuild.
 - AX/CG coordinates put the origin at the top-left of the primary screen with y pointing down. Convert with `Geometry.cocoa`.
 - Overlay panels must be non-activating so Finder stays frontmost. While one of them holds keyboard focus, Finder may report no focused window (see `PathBarFeature.update`).
+- Don't run `sfltool dumpbtm` to check the login item: it pops an admin password prompt. The log line `login item registered` (or System Settings › General › Login Items) is enough.
 - Log geometry and status only. Never log folder or file names.
 - Finder preference changes need `killall Finder`, which interrupts copies. Ask the user before restarting Finder.
 - On macOS 26 the window title is the toolbar's flexible item, but the search item takes free room first: it grows from a 38 pt button into a ~290 pt field. Removing other toolbar items mostly widens search, not the title span the path bar uses. Fixed spaces (merged away) and flexible spaces (min width only) do not take room from it. Compact search is the workaround: move SRCH right after BACK, cover title + search field with the bar, and uncover Finder's field while `FinderWindow.isSearching`.
