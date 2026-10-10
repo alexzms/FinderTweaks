@@ -10,6 +10,7 @@ let package = Package(
         // The menu bar app and its features (Sources/FinderTweaks/Features/*).
         .executableTarget(name: "FinderTweaks", dependencies: ["FinderTweaksCore"]),
         .testTarget(name: "FinderTweaksCoreTests", dependencies: ["FinderTweaksCore"]),
+        .testTarget(name: "FinderTweaksTests", dependencies: ["FinderTweaks", "FinderTweaksCore"]),
     ],
     swiftLanguageModes: [.v5]
 )

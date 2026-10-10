@@ -3,13 +3,13 @@
 Menu bar app (LSUIElement) that enhances Finder. Swift package; the machine has Command Line Tools only, no Xcode.
 
 ## Commands
-- `make test` — swift-testing unit tests. The Makefile adds the CLT framework flags; plain `swift test` fails without Xcode.
+- `make test` — swift-testing unit tests (core + app targets). The Makefile adds the CLT framework flags; plain `swift test` fails without Xcode.
 - `make install` — build, sign, copy to ~/Applications, relaunch.
 - `make snapshot` — render UI states to build/snapshots/*.png, to check looks without driving Finder.
 - `make logs` — ~/Library/Logs/FinderTweaks.log.
 
 ## Layout
-- `Sources/FinderTweaksCore` — AX wrappers; `FinderTracker` (30 Hz poll of the focused Finder window → `FinderState`); `ToolbarProbe`/`ToolbarInfo` (toolbar geometry, window-relative); `FinderScript` (AppleScript); `FinderPreferences` (com.apple.finder); `Paths`.
+- `Sources/FinderTweaksCore` — AX wrappers; `FinderTracker` (event-driven: AX notifications from Finder + app activation trigger a re-read; 30 Hz bursts only while the mouse button is down; 1 s heartbeat → `FinderState`); `ToolbarProbe`/`ToolbarInfo` (toolbar geometry, window-relative); `FinderScript` (AppleScript); `FinderPreferences` (com.apple.finder); `Paths`.
 - `Sources/FinderTweaks` — `AppDelegate` (menu, permissions, login item), `Feature` protocol, `Features/<Name>/`.
 
 ## Gotchas
@@ -17,6 +17,7 @@ Menu bar app (LSUIElement) that enhances Finder. Swift package; the machine has 
 - AX/CG coordinates put the origin at the top-left of the primary screen with y pointing down. Convert with `Geometry.cocoa`.
 - Overlay panels must be non-activating so Finder stays frontmost. While one of them holds keyboard focus, Finder may report no focused window (see `PathBarFeature.update`).
 - Don't run `sfltool dumpbtm` to check the login item: it pops an admin password prompt. The log line `login item registered` (or System Settings › General › Login Items) is enough.
+- The path bar animates between idle and searching widths only when its top-left corner stays put (`PathBarPlacementTests.modesShareTheTopLeftCorner`). The user wants the search button kept while editing the path, never covered.
 - Log geometry and status only. Never log folder or file names.
 - Finder preference changes need `killall Finder`, which interrupts copies. Ask the user before restarting Finder.
 - On macOS 26 the window title is the toolbar's flexible item, but the search item takes free room first: it grows from a 38 pt button into a ~290 pt field. Removing other toolbar items mostly widens search, not the title span the path bar uses. Fixed spaces (merged away) and flexible spaces (min width only) do not take room from it. Compact search is the workaround: move SRCH right after BACK, cover title + search field with the bar, and uncover Finder's field while `FinderWindow.isSearching`.
