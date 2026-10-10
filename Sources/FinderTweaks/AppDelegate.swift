@@ -30,6 +30,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Self.promptForAccessibility()
         }
         updateTracker()
+        ensureLoginItem()
+    }
+
+    /// Launch at login is on by default — an overlay that's gone after a reboot just looks broken.
+    /// Once the user flips it in the menu, their choice ("loginItem") wins.
+    private func ensureLoginItem() {
+        let wanted = UserDefaults.standard.object(forKey: "loginItem") as? Bool ?? true
+        let service = SMAppService.mainApp
+        guard wanted, service.status != .enabled else { return }
+        do {
+            try service.register()
+            Log.write("login item registered")
+        } catch {
+            Log.write("login item error: \(error)")
+        }
     }
 
     private func updateTracker() {
@@ -98,8 +113,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         do {
             if SMAppService.mainApp.status == .enabled {
                 try SMAppService.mainApp.unregister()
+                UserDefaults.standard.set(false, forKey: "loginItem")
             } else {
                 try SMAppService.mainApp.register()
+                UserDefaults.standard.set(true, forKey: "loginItem")
             }
         } catch {
             Log.write("login item error: \(error)")
